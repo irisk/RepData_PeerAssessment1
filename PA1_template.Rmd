@@ -7,19 +7,115 @@ output:
 
 
 ## Loading and preprocessing the data
+Read the data:
+```{r results='hide'}
+library(dplyr)
+library(lattice)
+data <- read.csv(file="activity.csv", header=TRUE)
+```
 
-
+Turn the interval column into factors
+```{r}
+data$interval <- factor(data$interval)
+```
 
 ## What is mean total number of steps taken per day?
 
+First, we sum the number of steps per day:
+```{r}
+per_day <- group_by(data, date)
+stepsPerDay <- summarise(per_day, totalSteps=sum(steps))
+```
 
+Next, here is a histogram of the total number of steps taken each day, using 10 bins:
+
+```{r}
+hist(stepsPerDay$totalSteps, breaks=10)
+```
+
+The mean of the totalSteps per day is:
+```{r}
+mean(stepsPerDay$totalSteps, na.rm = TRUE)
+```
+
+The median of the totalSteps per day is:
+```{r}
+median(stepsPerDay$totalSteps, na.rm = TRUE)
+```
 
 ## What is the average daily activity pattern?
 
+We group the data by interval, and then find the mean (average) for each interval.
+Then we create a plot of these data points.
 
+```{r}
+per_interval <- group_by(data, interval)
+stepsPerInterval <- summarise(per_interval, averageSteps=mean(steps, na.rm=TRUE))
+plot(stepsPerInterval$interval, stepsPerInterval$averageSteps ) 
+lines(stepsPerInterval$interval, stepsPerInterval$averageSteps, type="l")
+```
+
+The 5-minute interval, that contains the maximum number of steps (average across all days in dataset) is:
+```{r}
+stepsPerInterval[which.max(stepsPerInterval$averageSteps),]
+```
 
 ## Imputing missing values
+1. The nr of missing values in the data set is:
+````{r}
+sum(is.na(data$steps))
+```
 
+
+2. We will fill in NA values, by using the mean of that day. If the mean of that day is also NA, we set it to be 0.
+
+```{r}
+#group data by date
+per_day <- group_by(data, date)
+#get average steps per day
+averageStepsPerDay <- summarise(per_day, averageSteps=mean(steps))
+#Set all NA values to be 0
+averageStepsPerDay$averageSteps[is.na(averageStepsPerDay$averageSteps)] <- 0
+filledData <- merge(data, averageStepsPerDay, by="date")
+#use the averageSteps data to fill in any NA values
+filledData$steps[is.na(filledData$steps)] <- filledData$averageSteps[is.na(filledData$steps)]
+```
+
+Now let's make a histogram again, for this new filled in data set.
+```{r}
+per_day2 <- group_by(filledData, date)
+stepsPerDay2 <- summarise(per_day2, totalSteps=sum(steps))
+hist(stepsPerDay2$totalSteps, breaks=10)
+```
+
+The mean of the totalSteps per day is now:
+```{r}
+mean(stepsPerDay2$totalSteps, na.rm = TRUE)
+```
+
+The median of the totalSteps per day is now:
+```{r}
+median(stepsPerDay2$totalSteps, na.rm = TRUE)
+```
 
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+```{r}
+#add column with weekdays
+filledData$day <- weekdays(as.Date(filledData$date,'%Y-%m-%d'))
+#add column categorizing weekdays vs weekend
+filledData$weekday <- ifelse(filledData$day %in% c("Saturday", "Sunday"), "Weekend", "Weekday")
+#make this column a factor
+filledData$weekday <- factor(filledData$weekday)
+#group by interval and weekday
+groups2 <- group_by(filledData, interval, weekday)
+weekdayData <- summarise(groups2, averageSteps=mean(steps))
+
+
+#create the plot
+xyplot(averageSteps ~ interval | weekday, data=weekdayData,type='l', layout=c(1,2))
+
+
+```
+
